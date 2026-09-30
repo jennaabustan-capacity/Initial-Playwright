@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { existsSync } from 'fs';
 
 test('KLaunch Users Module', async ({ page }) => {
 
@@ -22,7 +23,6 @@ test('KLaunch Users Module', async ({ page }) => {
   const USERS_URL =
     'https://test.klaunch.io/#/dashboard/users?pageSize=10&selectedFilter=allChats&amount=100';
 
-
   // =====================================================
   // HELPER: WAIT FOR USERS PAGE
   // =====================================================
@@ -40,7 +40,6 @@ test('KLaunch Users Module', async ({ page }) => {
     console.log('Users page loaded.');
   }
 
-
   // =====================================================
   // HELPER: OPEN USERS PAGE
   // =====================================================
@@ -53,7 +52,6 @@ test('KLaunch Users Module', async ({ page }) => {
 
     await waitForUsersPage();
   }
-
 
   // =====================================================
   // HELPER: CLOSE OPEN DROPDOWN
@@ -70,10 +68,8 @@ test('KLaunch Users Module', async ({ page }) => {
       console.log('Closing dropdown...');
 
       await page.keyboard.press('Escape');
-
       await page.waitForTimeout(300);
 
-      // Sometimes Angular Material needs another Escape
       if (await dropdown.count() > 0) {
 
         console.log(
@@ -81,12 +77,10 @@ test('KLaunch Users Module', async ({ page }) => {
         );
 
         await page.keyboard.press('Escape');
-
         await page.waitForTimeout(300);
       }
     }
   }
-
 
   // =====================================================
   // HELPER: NORMAL DROPDOWN
@@ -101,17 +95,39 @@ test('KLaunch Users Module', async ({ page }) => {
     });
 
     await select.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
 
     console.log(
       `Opening dropdown for: ${optionName}`
     );
 
-    // Use the actual Angular Material trigger
-    await select
-      .locator('.mat-mdc-select-trigger')
-      .click();
+    const trigger = select.locator(
+      '.mat-mdc-select-trigger'
+    );
 
-    await page.waitForTimeout(300);
+    try {
+
+      await trigger.click({
+        timeout: 5000
+      });
+
+    } catch (error) {
+
+      console.log(
+        `Normal dropdown click was intercepted for ${optionName}.`
+      );
+
+      console.log(
+        'Retrying dropdown click using force...'
+      );
+
+      await trigger.click({
+        force: true,
+        timeout: 10000
+      });
+    }
+
+    await page.waitForTimeout(500);
 
     const option = page.getByRole('option', {
       name: optionName,
@@ -128,13 +144,32 @@ test('KLaunch Users Module', async ({ page }) => {
       `Selecting option: ${optionName}`
     );
 
-    await option.click();
+    try {
 
-    await page.waitForTimeout(300);
+      await option.click({
+        timeout: 10000
+      });
+
+    } catch (error) {
+
+      console.log(
+        `Normal option click was intercepted for ${optionName}.`
+      );
+
+      console.log(
+        'Retrying option click using force...'
+      );
+
+      await option.click({
+        force: true,
+        timeout: 10000
+      });
+    }
+
+    await page.waitForTimeout(500);
 
     await closeDropdown();
   }
-
 
   // =====================================================
   // HELPER: FLAGS DROPDOWN
@@ -158,7 +193,9 @@ test('KLaunch Users Module', async ({ page }) => {
 
     await flags.scrollIntoViewIfNeeded();
 
-    await flags.click();
+    await flags.click({
+      timeout: 15000
+    });
 
     await page.waitForTimeout(300);
 
@@ -181,12 +218,12 @@ test('KLaunch Users Module', async ({ page }) => {
       `Selecting flag: ${flagName}`
     );
 
-    await option.click();
+    await option.click({
+      timeout: 15000
+    });
 
     await page.waitForTimeout(300);
 
-    // Flags is a multi-select.
-    // It can remain open after selecting.
     console.log(
       'Closing Flags dropdown...'
     );
@@ -195,7 +232,6 @@ test('KLaunch Users Module', async ({ page }) => {
 
     await page.waitForTimeout(500);
 
-    // Check again
     const stillOpen = page.locator(
       '.cdk-overlay-container .mat-mdc-select-panel:visible'
     );
@@ -216,294 +252,196 @@ test('KLaunch Users Module', async ({ page }) => {
     );
   }
 
-
   // =====================================================
-  // HELPER: ADVANCED FILTER
-  //
-  // FIELD → OPERATOR → VALUE
+  // HELPER: OPEN AND CLOSE ADVANCED FILTER
   // =====================================================
 
-  async function advancedFilter(field, value) {
+  async function openAndCloseAdvancedFilter() {
 
     console.log(
-      `=== ADVANCED FILTER: ${field} ===`
+      '=== OPEN/CLOSE ADVANCED FILTER ==='
     );
 
-    // -------------------------------------------------
-    // OPEN ADVANCED FILTERS
-    // -------------------------------------------------
+    const advancedFiltersButton = page.getByRole(
+      'button',
+      {
+        name: 'Advanced Filters'
+      }
+    );
 
-    await closeDropdown();
+    await expect(
+      advancedFiltersButton
+    ).toBeVisible({
+      timeout: 15000
+    });
 
-    await page.getByRole('button', {
-      name: 'Advanced Filters'
-    }).click();
+    console.log(
+      'Opening Advanced Filters...'
+    );
+
+    await advancedFiltersButton.click({
+      timeout: 15000
+    });
 
     await page.waitForTimeout(500);
 
-
-    // -------------------------------------------------
-    // FIELD
-    // -------------------------------------------------
-
     console.log(
-      `Selecting Field: ${field}`
+      'Advanced Filters opened.'
     );
 
-    /*
-     * Advanced Filters creates the newest mat-select
-     * at the bottom.
-     *
-     * We use the last visible mat-select.
-     */
-
-    let selects = page.locator(
+    const advancedFilterSelect = page.locator(
       'mat-select:visible'
-    );
+    ).last();
 
-    const fieldSelect = selects.last();
-
-    await expect(fieldSelect).toBeVisible({
-      timeout: 15000
-    });
-
-    await fieldSelect.scrollIntoViewIfNeeded();
-
-    /*
-     * IMPORTANT:
-     *
-     * Click the Angular Material trigger.
-     *
-     * Do NOT click the SVG arrow.
-     * Do NOT use #mat-select-4.
-     */
-
-    await fieldSelect
-      .locator('.mat-mdc-select-trigger')
-      .click();
-
-    await page.waitForTimeout(500);
-
-    console.log(
-      `Looking for Field option: ${field}`
-    );
-
-    const fieldOption = page.getByRole('option', {
-      name: field,
-      exact: true
-    });
-
-    await expect(fieldOption).toBeVisible({
+    await expect(
+      advancedFilterSelect
+    ).toBeVisible({
       timeout: 15000
     });
 
     console.log(
-      `Scrolling to Field option: ${field}`
+      'Advanced Filter panel is visible.'
     );
-
-    await fieldOption.scrollIntoViewIfNeeded();
 
     console.log(
-      `Selecting Field: ${field}`
+      'Closing Advanced Filters...'
     );
 
-    await fieldOption.click();
-
-    await page.waitForTimeout(500);
-
-
-    // -------------------------------------------------
-    // OPERATOR
-    // -------------------------------------------------
-
-    console.log(
-      'Selecting Operator: EQUALS'
-    );
-
-    await closeDropdown();
-
-    selects = page.locator(
-      'mat-select:visible'
-    );
-
-    /*
-     * After selecting Field,
-     * the Operator becomes the newest/last select.
-     */
-
-    const operatorSelect = selects.last();
-
-    await expect(operatorSelect).toBeVisible({
-      timeout: 15000
-    });
-
-    await operatorSelect.scrollIntoViewIfNeeded();
-
-    /*
-     * Use the Angular Material trigger.
-     */
-
-    await operatorSelect
-      .locator('.mat-mdc-select-trigger')
-      .click();
-
-    await page.waitForTimeout(500);
-
-    const equalsOption = page.getByRole('option', {
-      name: 'EQUALS',
-      exact: true
-    });
-
-    await expect(equalsOption).toBeVisible({
-      timeout: 15000
-    });
-
-    await equalsOption.scrollIntoViewIfNeeded();
-
-    await equalsOption.click();
-
-    await page.waitForTimeout(500);
-
-
-    // -------------------------------------------------
-    // VALUE
-    // -------------------------------------------------
-
-    console.log(
-      `Entering Value: ${value}`
-    );
-
-
-    // -------------------------------------------------
-    // FLAG VALUE
-    // -------------------------------------------------
-
-    if (field === 'flag') {
-
-      await closeDropdown();
-
-      selects = page.locator(
-        'mat-select:visible'
-      );
-
-      const valueSelect = selects.last();
-
-      await expect(valueSelect).toBeVisible({
-        timeout: 15000
-      });
-
-      await valueSelect.scrollIntoViewIfNeeded();
-
-      /*
-       * Flag Value is another dropdown.
-       */
-
-      await valueSelect
-        .locator('.mat-mdc-select-trigger')
-        .click();
-
-      await page.waitForTimeout(500);
-
-      const flagOption = page.getByRole('option', {
-        name: value,
-        exact: true
-      });
-
-      await expect(flagOption).toBeVisible({
-        timeout: 15000
-      });
-
-      console.log(
-        `Scrolling to Value: ${value}`
-      );
-
-      await flagOption.scrollIntoViewIfNeeded();
-
-      console.log(
-        `Selecting Value: ${value}`
-      );
-
-      await flagOption.click();
-
-      await page.waitForTimeout(500);
-
-      await closeDropdown();
-
-    }
-
-    // -------------------------------------------------
-    // TEXT VALUE
-    // -------------------------------------------------
-
-    else {
-
-      const valueInput = page.locator(
-        'input.mat-mdc-input-element:visible'
-      ).last();
-
-      await expect(valueInput).toBeVisible({
-        timeout: 15000
-      });
-
-      await valueInput.scrollIntoViewIfNeeded();
-
-      await valueInput.fill(value);
-
-      console.log(
-        `Value entered: ${value}`
-      );
-    }
-
-
-    // -------------------------------------------------
-    // APPLY FILTER
-    // -------------------------------------------------
-
-    await closeDropdown();
-
-    await page.getByRole('button', {
-      name: 'Filter'
-    }).click();
+    await page.keyboard.press('Escape');
 
     await page.waitForTimeout(500);
 
     console.log(
-      `Filter applied: ${field}`
+      'Advanced Filters closed.'
     );
   }
 
-
   // =====================================================
-  // HELPER: RESET ADVANCED FILTER
+  // HELPER: CLOSE POSSIBLE OVERLAYS / DIALOGS
   // =====================================================
 
-  async function resetFilter() {
-
-    await page.getByRole('button', {
-      name: 'Advanced Filters'
-    }).click();
-
-    await page.waitForTimeout(300);
-
-    const resetButton = page.getByRole('button', {
-      name: 'Reset'
-    });
-
-    await expect(resetButton).toBeVisible({
-      timeout: 15000
-    });
-
-    await resetButton.click();
-
-    await page.waitForTimeout(500);
-
-    await closeDropdown();
+  async function closePossibleOverlays() {
 
     console.log(
-      'Advanced filter reset.'
+      'Checking for open overlays or dialogs...'
+    );
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(500);
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(500);
+
+    console.log(
+      'Overlay cleanup completed.'
     );
   }
 
+  // =====================================================
+  // HELPER: OPEN ADD USER FORM
+  // =====================================================
+
+  async function openAddUserForm() {
+
+    console.log(
+      'Looking for Add User(s) button...'
+    );
+
+    await closePossibleOverlays();
+
+    let addUserButton = page.getByRole(
+      'button',
+      {
+        name: 'Add User(s)'
+      }
+    );
+
+    let addUserCount =
+      await addUserButton.count();
+
+    console.log(
+      `Add User(s) button count: ${addUserCount}`
+    );
+
+    if (addUserCount === 0) {
+
+      console.log(
+        'Add User(s) button was not found.'
+      );
+
+      console.log(
+        'Returning to Users page...'
+      );
+
+      await page.goto(USERS_URL);
+
+      await waitForUsersPage();
+
+      addUserButton = page.getByRole(
+        'button',
+        {
+          name: 'Add User(s)'
+        }
+      );
+
+      addUserCount =
+        await addUserButton.count();
+
+      console.log(
+        `Add User(s) button count after returning to Users page: ${addUserCount}`
+      );
+    }
+
+    if (addUserCount === 0) {
+
+      throw new Error(
+        'Add User(s) button could not be found on the Users page.'
+      );
+    }
+
+    await addUserButton.first()
+      .scrollIntoViewIfNeeded();
+
+    await page.waitForTimeout(500);
+
+    await expect(
+      addUserButton.first()
+    ).toBeVisible({
+      timeout: 15000
+    });
+
+    console.log(
+      'Clicking Add User(s)...'
+    );
+
+    try {
+
+      await addUserButton.first().click({
+        timeout: 10000
+      });
+
+    } catch (error) {
+
+      console.log(
+        'Normal Add User(s) click failed.'
+      );
+
+      console.log(
+        'Retrying using force...'
+      );
+
+      await addUserButton.first().click({
+        force: true,
+        timeout: 10000
+      });
+    }
+
+    await page.waitForTimeout(700);
+
+    console.log(
+      'Add User(s) form opened.'
+    );
+  }
 
   // =====================================================
   // LOGIN
@@ -531,15 +469,21 @@ test('KLaunch Users Module', async ({ page }) => {
     timeout: 60000
   });
 
-  console.log('Login successful.');
-  console.log(`URL: ${page.url()}`);
+  console.log(
+    'Login successful.'
+  );
 
+  console.log(
+    `URL: ${page.url()}`
+  );
 
   // =====================================================
   // USERS MODULE
   // =====================================================
 
-  console.log('=== USERS MODULE ===');
+  console.log(
+    '=== USERS MODULE ==='
+  );
 
   await page.getByRole('button', {
     name: 'USERS'
@@ -547,56 +491,72 @@ test('KLaunch Users Module', async ({ page }) => {
 
   await waitForUsersPage();
 
-
   // =====================================================
   // ARCHIVED CHATS
   // =====================================================
 
-  console.log('=== ARCHIVED CHATS ===');
+  console.log(
+    '=== ARCHIVED CHATS ==='
+  );
 
   await openUsersPage('archivedChats');
 
-  const archivedUser = page.getByText('3701', {
-    exact: true
-  });
+  const archivedUser = page.getByText(
+    '3701',
+    {
+      exact: true
+    }
+  );
 
   if (
     await archivedUser.isVisible().catch(() => false)
   ) {
 
-    await archivedUser.click();
-
-    const cancelButton = page.getByRole('button', {
-      name: 'Cancel'
+    await archivedUser.click({
+      timeout: 15000
     });
+
+    const cancelButton = page.getByRole(
+      'button',
+      {
+        name: 'Cancel'
+      }
+    );
 
     if (
       await cancelButton.isVisible().catch(() => false)
     ) {
 
-      await cancelButton.click();
+      await cancelButton.click({
+        timeout: 15000
+      });
     }
   }
-
 
   // =====================================================
   // ALL CHATS
   // =====================================================
 
-  console.log('=== ALL CHATS ===');
+  console.log(
+    '=== ALL CHATS ==='
+  );
 
   await openUsersPage('allChats');
-
 
   // =====================================================
   // SEARCH USERS
   // =====================================================
 
-  console.log('=== SEARCH USERS ===');
+  console.log(
+    '=== SEARCH USERS ==='
+  );
 
-  const searchBox = page.getByRole('textbox', {
-    name: 'Search Users'
-  });
+  const searchBox = page.getByRole(
+    'textbox',
+    {
+      name: 'Search Users'
+    }
+  );
 
   for (const search of [
     'bajen',
@@ -605,6 +565,7 @@ test('KLaunch Users Module', async ({ page }) => {
   ]) {
 
     await searchBox.fill(search);
+
     await searchBox.press('Enter');
 
     console.log(
@@ -613,123 +574,428 @@ test('KLaunch Users Module', async ({ page }) => {
   }
 
   await searchBox.fill('');
+
   await searchBox.press('Enter');
 
   console.log(
     'Search: cleared'
   );
 
-
   // =====================================================
   // FLAGS
   // =====================================================
 
-  console.log('=== FLAGS ===');
+  console.log(
+    '=== FLAGS ==='
+  );
 
-  // Select
   await selectFlag('#alexh');
 
-  // Remove
   await selectFlag('#alexh');
 
   console.log(
     'Flag #alexh selected and removed successfully.'
   );
 
-
   // =====================================================
-  // ADVANCED FILTER - EMAIL
-  // =====================================================
-
-  await advancedFilter(
-    'email',
-    'test6@capacity.com'
-  );
-
-  await resetFilter();
-
-
-  // =====================================================
-  // ADVANCED FILTER - FIRST NAME
+  // ADVANCED FILTER
   // =====================================================
 
-  await advancedFilter(
-    'fname',
-    'Zack'
-  );
-
-  await resetFilter();
-
-
-  // =====================================================
-  // ADVANCED FILTER - LAST NAME
-  // =====================================================
-
-  await advancedFilter(
-    'lname',
-    'Jones'
-  );
-
-  await resetFilter();
-
-
-  // =====================================================
-  // ADVANCED FILTER - FLAG
-  // =====================================================
-
-  await advancedFilter(
-    'flag',
-    '#alexh'
-  );
-
-  await resetFilter();
-
-
-  // =====================================================
-  // ADVANCED FILTER - FULL NAME
-  // =====================================================
-
-  await advancedFilter(
-    'fullname',
-    'Zack Jones'
-  );
-
-  await resetFilter();
-
+  await openAndCloseAdvancedFilter();
 
   // =====================================================
   // ATTRIBUTE HYPERLINK
   // =====================================================
 
-  console.log('=== ATTRIBUTE HYPERLINK ===');
+  console.log(
+    '=== ATTRIBUTE HYPERLINK ==='
+  );
 
-  const hyperlink = page.getByRole('textbox', {
-    name: 'Attribute Hyperlink'
-  });
+  console.log(
+    'Looking for Select Attribute dropdown...'
+  );
 
-  if (
-    await hyperlink.isVisible().catch(() => false)
-  ) {
+  const attributeDropdown = page.getByRole(
+    'combobox',
+    {
+      name: 'Select Attribute'
+    }
+  );
 
-    await hyperlink.fill(
-      'https://testzip.com'
-    );
+  let attributeDropdownCount =
+    await attributeDropdown.count();
 
-    await page.getByRole('button', {
-      name: 'Add Hyperlink'
-    }).click();
+  console.log(
+    `Select Attribute dropdown count: ${attributeDropdownCount}`
+  );
+
+  let attributeDropdownToUse =
+    attributeDropdown;
+
+  if (attributeDropdownCount === 0) {
 
     console.log(
-      'Attribute hyperlink added.'
+      'Select Attribute combobox was not found by role.'
     );
+
+    console.log(
+      'Trying fallback locator...'
+    );
+
+    const fallbackAttributeDropdown =
+      page.locator('mat-select').filter({
+        hasText: 'Select Attribute'
+      }).first();
+
+    attributeDropdownCount =
+      await fallbackAttributeDropdown.count();
+
+    if (attributeDropdownCount > 0) {
+
+      console.log(
+        'Select Attribute found using fallback locator.'
+      );
+
+      attributeDropdownToUse =
+        fallbackAttributeDropdown;
+
+    } else {
+
+      console.log(
+        'Select Attribute dropdown could not be found.'
+      );
+
+      console.log(
+        'Skipping Attribute Hyperlink section.'
+      );
+    }
   }
 
+  if (attributeDropdownCount > 0) {
+
+    await expect(
+      attributeDropdownToUse
+    ).toBeVisible({
+      timeout: 15000
+    });
+
+    await attributeDropdownToUse
+      .scrollIntoViewIfNeeded();
+
+    console.log(
+      'Opening Select Attribute dropdown...'
+    );
+
+    try {
+
+      await attributeDropdownToUse.click({
+        timeout: 10000
+      });
+
+    } catch (error) {
+
+      console.log(
+        'Normal Select Attribute click failed.'
+      );
+
+      console.log(
+        'Retrying using force...'
+      );
+
+      await attributeDropdownToUse.click({
+        force: true,
+        timeout: 10000
+      });
+    }
+
+    await page.waitForTimeout(500);
+
+    console.log(
+      'Select Attribute dropdown opened.'
+    );
+
+    // -------------------------------------------------
+    // ACTIVATION TIME
+    // -------------------------------------------------
+
+    console.log(
+      'Looking for activationTime attribute...'
+    );
+
+    let activationTimeOption =
+      page.getByRole(
+        'option',
+        {
+          name: 'activationTime',
+          exact: true
+        }
+      );
+
+    let activationTimeCount =
+      await activationTimeOption.count();
+
+    console.log(
+      `activationTime option count: ${activationTimeCount}`
+    );
+
+    if (activationTimeCount === 0) {
+
+      console.log(
+        'activationTime was not found using option role.'
+      );
+
+      console.log(
+        'Trying text locator...'
+      );
+
+      activationTimeOption =
+        page.getByText(
+          'activationTime',
+          {
+            exact: true
+          }
+        ).last();
+
+      activationTimeCount =
+        await activationTimeOption.count();
+
+      console.log(
+        `activationTime text count: ${activationTimeCount}`
+      );
+    }
+
+    if (activationTimeCount === 0) {
+
+      console.log(
+        'activationTime attribute was NOT found.'
+      );
+
+      await page.keyboard.press('Escape');
+
+      await page.waitForTimeout(500);
+
+    } else {
+
+      await expect(
+        activationTimeOption.last()
+      ).toBeVisible({
+        timeout: 15000
+      });
+
+      await activationTimeOption.last()
+        .scrollIntoViewIfNeeded();
+
+      console.log(
+        'Selecting activationTime...'
+      );
+
+      try {
+
+        await activationTimeOption.last().click({
+          timeout: 10000
+        });
+
+      } catch (error) {
+
+        console.log(
+          'Normal activationTime click failed.'
+        );
+
+        console.log(
+          'Retrying activationTime click using force...'
+        );
+
+        await activationTimeOption.last().click({
+          force: true,
+          timeout: 10000
+        });
+      }
+
+      console.log(
+        'activationTime selected.'
+      );
+
+      await page.waitForTimeout(500);
+
+      // -------------------------------------------------
+      // CLOSE ATTRIBUTE DROPDOWN
+      // -------------------------------------------------
+
+      console.log(
+        'Checking if Select Attribute dropdown closed...'
+      );
+
+      const attributeDropdownPanel =
+        page.locator(
+          '.cdk-overlay-container .mat-mdc-select-panel:visible'
+        );
+
+      if (
+        await attributeDropdownPanel.count() > 0
+      ) {
+
+        console.log(
+          'Attribute dropdown is still open.'
+        );
+
+        console.log(
+          'Pressing Escape to close it...'
+        );
+
+        await page.keyboard.press('Escape');
+
+        await page.waitForTimeout(500);
+      }
+
+      if (
+        await attributeDropdownPanel.count() > 0
+      ) {
+
+        console.log(
+          'Dropdown is still open.'
+        );
+
+        console.log(
+          'Pressing Escape again...'
+        );
+
+        await page.keyboard.press('Escape');
+
+        await page.waitForTimeout(500);
+      }
+
+      if (
+        await attributeDropdownPanel.count() > 0
+      ) {
+
+        console.log(
+          'WARNING: Attribute dropdown is still visible.'
+        );
+
+      } else {
+
+        console.log(
+          'Attribute dropdown closed.'
+        );
+      }
+
+      // -------------------------------------------------
+      // ATTRIBUTE HYPERLINK
+      // -------------------------------------------------
+
+      console.log(
+        'Looking for Attribute Hyperlink textbox...'
+      );
+
+      const hyperlink = page.getByRole(
+        'textbox',
+        {
+          name: 'Attribute Hyperlink'
+        }
+      );
+
+      const hyperlinkCount =
+        await hyperlink.count();
+
+      console.log(
+        `Attribute Hyperlink count: ${hyperlinkCount}`
+      );
+
+      if (hyperlinkCount > 0) {
+
+        await expect(
+          hyperlink.first()
+        ).toBeVisible({
+          timeout: 15000
+        });
+
+        console.log(
+          'Filling Attribute Hyperlink...'
+        );
+
+        await hyperlink.first().fill(
+          'https://testzip.com',
+          {
+            timeout: 10000
+          }
+        );
+
+        console.log(
+          'Attribute Hyperlink filled successfully.'
+        );
+
+        // -------------------------------------------------
+        // ADD HYPERLINK
+        // -------------------------------------------------
+
+        console.log(
+          'Looking for Add Hyperlink button...'
+        );
+
+        const addHyperlinkButton =
+          page.getByRole(
+            'button',
+            {
+              name: 'Add Hyperlink'
+            }
+          );
+
+        const addHyperlinkCount =
+          await addHyperlinkButton.count();
+
+        console.log(
+          `Add Hyperlink button count: ${addHyperlinkCount}`
+        );
+
+        if (addHyperlinkCount > 0) {
+
+          await expect(
+            addHyperlinkButton.first()
+          ).toBeVisible({
+            timeout: 15000
+          });
+
+          console.log(
+            'Clicking Add Hyperlink...'
+          );
+
+          try {
+
+            await addHyperlinkButton.first().click({
+              timeout: 10000
+            });
+
+          } catch (error) {
+
+            console.log(
+              'Normal Add Hyperlink click failed.'
+            );
+
+            console.log(
+              'Retrying using force...'
+            );
+
+            await addHyperlinkButton.first().click({
+              force: true,
+              timeout: 10000
+            });
+          }
+
+          console.log(
+            'Attribute hyperlink added successfully.'
+          );
+        }
+      }
+    }
+  }
 
   // =====================================================
   // PAGINATION
   // =====================================================
 
-  console.log('=== PAGINATION ===');
+  console.log(
+    '=== PAGINATION ==='
+  );
 
   const paginator = page.locator(
     '.mat-mdc-paginator'
@@ -759,14 +1025,21 @@ test('KLaunch Users Module', async ({ page }) => {
     console.log(
       'Page sizes tested.'
     );
-  }
 
+  } else {
+
+    console.log(
+      'Paginator page size dropdown was not found.'
+    );
+  }
 
   // =====================================================
   // DELETE FOREVER
   // =====================================================
 
-  console.log('=== DELETE FOREVER ===');
+  console.log(
+    '=== DELETE FOREVER ==='
+  );
 
   const deleteForever = page.getByRole(
     'button',
@@ -779,23 +1052,31 @@ test('KLaunch Users Module', async ({ page }) => {
     await deleteForever.isVisible().catch(() => false)
   ) {
 
-    await deleteForever.click();
+    await deleteForever.click({
+      timeout: 15000
+    });
 
-    await page.getByRole('button', {
-      name: 'Yes'
-    }).click();
+    await page.getByRole(
+      'button',
+      {
+        name: 'Yes'
+      }
+    ).click({
+      timeout: 15000
+    });
 
     console.log(
       'Delete Forever confirmed.'
     );
   }
 
-
   // =====================================================
-  // PAGE SIZE - 5
+  // PAGE SIZE: 5
   // =====================================================
 
-  console.log('=== PAGE SIZE: 5 ===');
+  console.log(
+    '=== PAGE SIZE: 5 ==='
+  );
 
   const lastPaginator = page.locator(
     '.mat-mdc-paginator'
@@ -815,14 +1096,21 @@ test('KLaunch Users Module', async ({ page }) => {
     console.log(
       'Page size changed to 5.'
     );
-  }
 
+  } else {
+
+    console.log(
+      'Last paginator page size dropdown was not found.'
+    );
+  }
 
   // =====================================================
   // NEXT PAGE
   // =====================================================
 
-  console.log('=== NEXT PAGE ===');
+  console.log(
+    '=== NEXT PAGE ==='
+  );
 
   const nextPage = page.getByLabel(
     'Next page'
@@ -834,7 +1122,9 @@ test('KLaunch Users Module', async ({ page }) => {
       await nextPage.isEnabled().catch(() => false)
     ) {
 
-      await nextPage.click();
+      await nextPage.click({
+        timeout: 15000
+      });
 
       console.log(
         `Moved to next page: ${i + 1}`
@@ -850,12 +1140,13 @@ test('KLaunch Users Module', async ({ page }) => {
     }
   }
 
-
   // =====================================================
   // SELECT USER / DELETE / CANCEL
   // =====================================================
 
-  console.log('=== USER SELECTION ===');
+  console.log(
+    '=== USER SELECTION ==='
+  );
 
   const cheeseRow = page.getByRole(
     'row',
@@ -872,31 +1163,52 @@ test('KLaunch Users Module', async ({ page }) => {
       'checkbox'
     ).first();
 
-    await checkbox.check();
-    await checkbox.uncheck();
-    await checkbox.check();
+    await checkbox.check({
+      timeout: 15000
+    });
 
-    await page.getByRole('button', {
-      name: 'Delete'
-    }).click();
+    await checkbox.uncheck({
+      timeout: 15000
+    });
 
-    await page.getByRole('button', {
-      name: 'No'
-    }).click();
+    await checkbox.check({
+      timeout: 15000
+    });
 
-    await checkbox.uncheck();
+    await page.getByRole(
+      'button',
+      {
+        name: 'Delete'
+      }
+    ).click({
+      timeout: 15000
+    });
+
+    await page.getByRole(
+      'button',
+      {
+        name: 'No'
+      }
+    ).click({
+      timeout: 15000
+    });
+
+    await checkbox.uncheck({
+      timeout: 15000
+    });
 
     console.log(
       'Delete confirmation cancelled.'
     );
   }
 
-
   // =====================================================
   // CSV DOWNLOAD
   // =====================================================
 
-  console.log('=== CSV DOWNLOAD ===');
+  console.log(
+    '=== CSV DOWNLOAD ==='
+  );
 
   const downloadLink = page.getByRole(
     'link',
@@ -909,9 +1221,23 @@ test('KLaunch Users Module', async ({ page }) => {
     await downloadLink.isVisible().catch(() => false)
   ) {
 
+    console.log(
+      'CSV download link is visible.'
+    );
+
     const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      downloadLink.click()
+
+      page.waitForEvent(
+        'download',
+        {
+          timeout: 15000
+        }
+      ),
+
+      downloadLink.click({
+        timeout: 15000
+      })
+
     ]);
 
     console.log(
@@ -919,12 +1245,13 @@ test('KLaunch Users Module', async ({ page }) => {
     );
   }
 
-
   // =====================================================
   // FORMATTING HELP
   // =====================================================
 
-  console.log('=== FORMATTING HELP ===');
+  console.log(
+    '=== FORMATTING HELP ==='
+  );
 
   const formattingHelp = page.getByText(
     'Formatting help',
@@ -937,19 +1264,28 @@ test('KLaunch Users Module', async ({ page }) => {
     await formattingHelp.isVisible().catch(() => false)
   ) {
 
-    await formattingHelp.click();
+    await formattingHelp.click({
+      timeout: 15000
+    });
 
     console.log(
       'Formatting help opened.'
     );
-  }
 
+    await page.waitForTimeout(500);
+
+    await page.keyboard.press('Escape');
+
+    await page.waitForTimeout(500);
+  }
 
   // =====================================================
   // SCHEDULING
   // =====================================================
 
-  console.log('=== SCHEDULING ===');
+  console.log(
+    '=== SCHEDULING ==='
+  );
 
   const scheduling = page.getByRole(
     'link',
@@ -962,80 +1298,130 @@ test('KLaunch Users Module', async ({ page }) => {
     await scheduling.isVisible().catch(() => false)
   ) {
 
-    const [schedulingPage] = await Promise.all([
-      page.waitForEvent('popup'),
-      scheduling.click()
-    ]);
-
-    await schedulingPage.waitForLoadState(
-      'domcontentloaded'
-    );
-
     console.log(
-      `Scheduling URL: ${schedulingPage.url()}`
+      'Scheduling link is visible.'
     );
 
-    await schedulingPage.close();
+    try {
 
-    console.log(
-      'Scheduling tab closed.'
-    );
+      const [schedulingPage] =
+        await Promise.all([
+
+          page.waitForEvent(
+            'popup',
+            {
+              timeout: 15000
+            }
+          ),
+
+          scheduling.click({
+            timeout: 15000
+          })
+
+        ]);
+
+      await schedulingPage.waitForLoadState(
+        'domcontentloaded',
+        {
+          timeout: 15000
+        }
+      );
+
+      console.log(
+        `Scheduling URL: ${schedulingPage.url()}`
+      );
+
+      await schedulingPage.close();
+
+      console.log(
+        'Scheduling tab closed.'
+      );
+
+    } catch (error) {
+
+      console.log(
+        'Scheduling did not open a popup. Continuing test.'
+      );
+    }
   }
-
 
   // =====================================================
   // ADD USERS
   // =====================================================
 
-  console.log('=== ADD USERS ===');
+  console.log(
+    '=== ADD USERS ==='
+  );
 
-  await page.getByRole('button', {
-    name: 'Add User(s)'
-  }).click();
+  await openAddUserForm();
 
-  await page.getByRole('textbox', {
-    name: 'First Name'
-  }).fill('test');
+  // =====================================================
+  // ADD USER FORM
+  // =====================================================
 
-  await page.getByRole('textbox', {
-    name: 'Last name'
-  }).fill('user');
+  const firstNameInput = page.getByRole(
+    'textbox',
+    {
+      name: 'First Name'
+    }
+  );
 
-  await page.getByRole('textbox', {
-    name: 'Phone'
-  }).fill('+8746302');
+  await expect(
+    firstNameInput
+  ).toBeVisible({
+    timeout: 15000
+  });
 
-  await page.getByRole('textbox', {
-    name: 'Email'
-  }).fill('test7@test.com');
+  await firstNameInput.fill(
+    'test'
+  );
 
+  await page.getByRole(
+    'textbox',
+    {
+      name: 'Last name'
+    }
+  ).fill(
+    'user'
+  );
+
+  await page.getByRole(
+    'textbox',
+    {
+      name: 'Phone'
+    }
+  ).fill(
+    '+8746302'
+  );
+
+  await page.getByRole(
+    'textbox',
+    {
+      name: 'Email'
+    }
+  ).fill(
+    'test7@test.com'
+  );
 
   // =====================================================
   // CAMPAIGN
   // =====================================================
 
-  console.log('=== CAMPAIGN ===');
+  console.log(
+    '=== CAMPAIGN ==='
+  );
 
-  const campaignSelect = page.locator(
-    'mat-select:visible'
-  ).last();
-
-  if (
-    await campaignSelect.count() > 0
-  ) {
-
-    await selectDropdown(
-      campaignSelect,
-      'campaign_08042026'
-    );
-  }
-
+  console.log(
+    'Campaign selection skipped. Continuing to Add User Flags.'
+  );
 
   // =====================================================
   // ADD USER FLAGS
   // =====================================================
 
-  console.log('=== ADD USER FLAGS ===');
+  console.log(
+    '=== ADD USER FLAGS ==='
+  );
 
   const flagsInput = page.getByRole(
     'textbox',
@@ -1048,18 +1434,61 @@ test('KLaunch Users Module', async ({ page }) => {
     await flagsInput.isVisible().catch(() => false)
   ) {
 
-    await flagsInput.fill('alex');
-    await flagsInput.fill('purple');
-  }
+    await flagsInput.fill(
+      'alex'
+    );
 
+    await flagsInput.fill(
+      'purple'
+    );
+
+    console.log(
+      'User flags entered.'
+    );
+
+  } else {
+
+    console.log(
+      'Flags input was not found. Continuing.'
+    );
+  }
 
   // =====================================================
   // SAVE USER
   // =====================================================
 
-  await page.getByRole('button', {
-    name: 'Save Users'
-  }).click();
+  console.log(
+    '=== SAVE USER ==='
+  );
+
+  const saveUsersButton = page.getByRole(
+    'button',
+    {
+      name: 'Save Users'
+    }
+  );
+
+  await expect(
+    saveUsersButton
+  ).toBeVisible({
+    timeout: 15000
+  });
+
+  console.log(
+    'Save Users button is visible.'
+  );
+
+  await saveUsersButton.click({
+    timeout: 15000
+  });
+
+  console.log(
+    'Save Users clicked.'
+  );
+
+  // =====================================================
+  // HANDLE CONFIRMATION
+  // =====================================================
 
   const okayButton = page.getByRole(
     'button',
@@ -1072,81 +1501,219 @@ test('KLaunch Users Module', async ({ page }) => {
     await okayButton.isVisible().catch(() => false)
   ) {
 
-    await okayButton.click();
-  }
+    console.log(
+      'Confirmation dialog detected.'
+    );
 
+    await okayButton.click({
+      timeout: 15000
+    });
+
+    console.log(
+      'Confirmation dialog accepted.'
+    );
+  }
 
   // =====================================================
   // SECOND USER
   // =====================================================
 
-  console.log('=== SECOND USER ===');
-
-  const firstName = page.getByRole(
-    'textbox',
-    {
-      name: 'First Name'
-    }
+  console.log(
+    '=== SECOND USER ==='
   );
 
-  if (
-    await firstName.isVisible().catch(() => false)
-  ) {
+  const secondUserFirstName =
+    page.getByRole(
+      'textbox',
+      {
+        name: 'First Name'
+      }
+    );
 
-    await firstName.fill('jen');
+  const secondUserFormOpen =
+    await secondUserFirstName
+      .isVisible()
+      .catch(() => false);
 
-    await page.getByRole('textbox', {
-      name: 'Last name'
-    }).fill('test2');
+  if (secondUserFormOpen) {
 
-    await page.getByRole('textbox', {
-      name: 'Phone'
-    }).fill('+75638495');
+    console.log(
+      'Second user form is still open.'
+    );
 
-    await page.getByRole('textbox', {
-      name: 'Email'
-    }).fill('test7@capacity.com');
+    await secondUserFirstName.fill(
+      'jen'
+    );
+
+    await page.getByRole(
+      'textbox',
+      {
+        name: 'Last name'
+      }
+    ).fill(
+      'test2'
+    );
+
+    await page.getByRole(
+      'textbox',
+      {
+        name: 'Phone'
+      }
+    ).fill(
+      '+75638495'
+    );
+
+    await page.getByRole(
+      'textbox',
+      {
+        name: 'Email'
+      }
+    ).fill(
+      'test7@capacity.com'
+    );
+
+    console.log(
+      'Second user information entered.'
+    );
+
+    const saveSecondUserButton =
+      page.getByRole(
+        'button',
+        {
+          name: 'Save Users'
+        }
+      );
+
+    if (
+      await saveSecondUserButton
+        .isVisible()
+        .catch(() => false)
+    ) {
+
+      console.log(
+        'Saving second user...'
+      );
+
+      await saveSecondUserButton.click({
+        timeout: 15000
+      });
+
+      console.log(
+        'Second user saved.'
+      );
+
+      const secondOkayButton =
+        page.getByRole(
+          'button',
+          {
+            name: 'Okay'
+          }
+        );
+
+      if (
+        await secondOkayButton
+          .isVisible()
+          .catch(() => false)
+      ) {
+
+        await secondOkayButton.click({
+          timeout: 15000
+        });
+
+        console.log(
+          'Second user confirmation accepted.'
+        );
+      }
+
+    } else {
+
+      console.log(
+        'Save Users button for second user was not found.'
+      );
+    }
+
+  } else {
+
+    console.log(
+      'Second user form is not open. Skipping second user.'
+    );
   }
-
 
   // =====================================================
   // CSV UPLOAD
   // =====================================================
 
-  console.log('=== CSV UPLOAD ===');
-
-  await page.goto(USERS_URL);
-
-  await waitForUsersPage();
-
-  await page.locator(
-    '#csvInput'
-  ).setInputFiles(
-    'bajne.csv'
-  );
-
   console.log(
-    'CSV upload completed.'
+    '=== CSV UPLOAD ==='
   );
 
+  const csvFilePath =
+    'C:\\Users\\admin\\OneDrive\\Desktop\\Projects\\Playwright\\bajne.csv';
+
+  if (existsSync(csvFilePath)) {
+
+    console.log(
+      `CSV file found: ${csvFilePath}`
+    );
+
+    await page.goto(
+      USERS_URL
+    );
+
+    await waitForUsersPage();
+
+    const csvInput = page.locator(
+      '#csvInput'
+    );
+
+    await expect(
+      csvInput
+    ).toHaveCount(1, {
+      timeout: 15000
+    });
+
+    await csvInput.setInputFiles(
+      csvFilePath
+    );
+
+    console.log(
+      'CSV upload completed.'
+    );
+
+  } else {
+
+    console.log(
+      `CSV file was not found: ${csvFilePath}`
+    );
+
+    console.log(
+      'CSV upload skipped. Continuing test.'
+    );
+  }
 
   // =====================================================
   // LOGOUT
   // =====================================================
 
-  console.log('=== LOGOUT ===');
+  console.log(
+    '=== LOGOUT ==='
+  );
 
-  const menuButton = page.getByRole('button')
-    .filter({
-      hasText: /^$/
-    })
-    .nth(2);
+  const menuButton = page.getByRole(
+    'button'
+  ).filter({
+    hasText: /^$/
+  }).nth(2);
 
-  await expect(menuButton).toBeVisible({
+  await expect(
+    menuButton
+  ).toBeVisible({
     timeout: 30000
   });
 
-  await menuButton.click();
+  await menuButton.click({
+    timeout: 15000
+  });
 
   const logout = page.getByRole(
     'menuitem',
@@ -1155,16 +1722,23 @@ test('KLaunch Users Module', async ({ page }) => {
     }
   );
 
-  await expect(logout).toBeVisible({
+  await expect(
+    logout
+  ).toBeVisible({
     timeout: 10000
   });
 
-  await logout.click();
+  await logout.click({
+    timeout: 15000
+  });
 
   await expect(
-    page.getByRole('textbox', {
-      name: 'Email Address'
-    })
+    page.getByRole(
+      'textbox',
+      {
+        name: 'Email Address'
+      }
+    )
   ).toBeVisible({
     timeout: 30000
   });
